@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Lock, Mail, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export function LoginForm() {
   const { signIn, resetPassword } = useAuth();
@@ -12,6 +13,14 @@ export function LoginForm() {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetMessage, setResetMessage] = useState('');
+  const [showInitialSetup, setShowInitialSetup] = useState(false);
+  const [setupData, setSetupData] = useState({
+    name: '',
+    email: '',
+    password: '',
+  });
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [setupMessage, setSetupMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +56,154 @@ export function LoginForm() {
     
     setLoading(false);
   };
+
+  const handleInitialSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSetupLoading(true);
+    setSetupMessage('');
+
+    try {
+      // Criar usuário no Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: setupData.email,
+        password: setupData.password,
+      });
+
+      if (authError) {
+        setSetupMessage(`Erro ao criar usuário: ${authError.message}`);
+        return;
+      }
+
+      if (!authData.user) {
+        setSetupMessage('Erro ao criar usuário');
+        return;
+      }
+
+      // Criar perfil do usuário
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          email: setupData.email,
+          name: setupData.name,
+          profile: 'admin',
+        });
+
+      if (profileError) {
+        setSetupMessage(`Erro ao criar perfil: ${profileError.message}`);
+        return;
+      }
+
+      setSetupMessage('Usuário administrador criado com sucesso! Faça login agora.');
+      setSetupData({ name: '', email: '', password: '' });
+      setTimeout(() => {
+        setShowInitialSetup(false);
+        setSetupMessage('');
+      }, 3000);
+    } catch (error) {
+      setSetupMessage('Erro interno do sistema');
+    } finally {
+      setSetupLoading(false);
+    }
+  };
+
+  if (showInitialSetup) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="max-w-md w-full space-y-8">
+          <div className="bg-white rounded-xl shadow-lg p-8">
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <span className="text-white font-bold text-2xl">NB</span>
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900">Setup Inicial</h2>
+              <p className="text-gray-600 mt-2">NB Hub Exames</p>
+              <p className="text-sm text-gray-500">Criar primeiro usuário administrador</p>
+            </div>
+
+            <form onSubmit={handleInitialSetup} className="space-y-6">
+              <div>
+                <label htmlFor="setup-name" className="block text-sm font-medium text-gray-700 mb-2">
+                  Nome Completo
+                </label>
+                <div className="relative">
+                  <UserPlus className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    id="setup-name"
+                    type="text"
+                    required
+                    value={setupData.name}
+                    onChange={(e) => setSetupData({ ...setupData, name: e.target.value })}
+                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    placeholder="Seu nome completo"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="setup-email" className="block text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    id="setup-email"
+                    type="email"
+                    required
+                    value={setupData.email}
+                    onChange={(e) => setSetupData({ ...setupData, email: e.target.value })}
+                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    placeholder="admin@empresa.com"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="setup-password" className="block text-sm font-medium text-gray-700 mb-2">
+                  Senha
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    id="setup-password"
+                    type="password"
+                    required
+                    minLength={6}
+                    value={setupData.password}
+                    onChange={(e) => setSetupData({ ...setupData, password: e.target.value })}
+                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                </div>
+              </div>
+
+              {setupMessage && (
+                <div className={`p-3 rounded-lg ${setupMessage.includes('sucesso') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+                  {setupMessage}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={setupLoading}
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {setupLoading ? 'Criando...' : 'Criar Administrador'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowInitialSetup(false)}
+                className="w-full text-sm text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                Voltar ao login
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (showResetPassword) {
     return (
@@ -187,6 +344,16 @@ export function LoginForm() {
                 className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
               >
                 Esqueci minha senha
+              </button>
+            </div>
+
+            <div className="text-center mt-4 pt-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => setShowInitialSetup(true)}
+                className="text-sm text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Primeiro acesso? Criar administrador
               </button>
             </div>
           </form>
