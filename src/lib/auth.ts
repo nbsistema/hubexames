@@ -206,26 +206,4 @@ export const authService = {
     }
   },
 
-  async createUser(email: string, name: string, profile: UserProfile): Promise<{ error: string | null }> {
-    try {
-      // Usar admin.createUser para criar usuários com senha padrão
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email,
-        password: 'nb@123',
-        email_confirm: true,
-        user_metadata: {
-          name: name,
-          profile: profile
-        }
-      });
-
-      if (authError || !authData.user) {
-        return { error: authError?.message || 'Erro ao criar usuário' };
-      }
-
-      return { error: null };
-    } catch {
-      return { error: 'Erro interno do sistema' };
-    }
-  },
 };
