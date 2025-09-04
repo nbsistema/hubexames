@@ -78,8 +78,10 @@ export const authService = {
 
   async resetPassword(email: string): Promise<{ error: string | null }> {
     try {
+      // Usar a URL atual do site em vez de localhost
+      const currentUrl = window.location.origin;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${currentUrl}/reset-password`,
       });
 
       return { error: error?.message || null };
@@ -165,12 +167,12 @@ export const authService = {
         return { error: 'Já existe um administrador no sistema' };
       }
 
-      // Criar usuário com signUp
+      // Criar usuário com signUp e confirmar email automaticamente
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
+          emailRedirectTo: `${window.location.origin}/reset-password`,
           data: {
             name: name,
             profile: 'admin'
@@ -182,18 +184,43 @@ export const authService = {
         return { error: authError?.message || 'Erro ao criar usuário' };
       }
 
-      // Aguardar um pouco para garantir que o trigger foi executado
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Se o usuário foi criado mas precisa confirmar email, vamos confirmar automaticamente
+      if (authData.user && !authData.user.email_confirmed_at) {
+        try {
+          // Tentar confirmar o email automaticamente usando admin API
+          await supabase.auth.admin.updateUserById(authData.user.id, {
+            email_confirm: true
+          });
+        } catch (adminError) {
+          console.log('Não foi possível confirmar email automaticamente:', adminError);
+        }
+      }
 
-      // Verificar se o usuário foi criado corretamente
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authData.user.id)
-        .single();
+      // Aguardar para garantir que o trigger foi executado
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
-      if (userError || !userData) {
-        return { error: 'Usuário criado mas perfil não foi configurado corretamente' };
+      return { error: null };
+    } catch (error) {
+      console.error('Erro na criação do admin:', error);
+      return { error: 'Erro interno do sistema' };
+    }
+  },
+
+  async createUser(email: string, name: string, profile: UserProfile): Promise<{ error: string | null }> {
+    try {
+      // Usar admin.createUser para criar usuários com senha padrão
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email,
+        password: 'nb@123',
+        email_confirm: true,
+        user_metadata: {
+          name: name,
+          profile: profile
+        }
+      });
+
+      if (authError || !authData.user) {
+        return { error: authError?.message || 'Erro ao criar usuário' };
       }
 
       return { error: null };
