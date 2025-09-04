@@ -341,6 +341,12 @@ export function LoginForm() {
               </button>
             </div>
           </form>
+
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>Importante:</strong> Após criar o administrador, você pode fazer login imediatamente com as credenciais criadas.
+            </p>
+          </div>
         </div>
 
         <div className="text-center">
