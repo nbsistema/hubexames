@@ -90,12 +90,44 @@ export const authService = {
 
   async createUser(email: string, name: string, profile: UserProfile): Promise<{ error: string | null }> {
     try {
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email,
-        password: 'nb@123',
-        email_confirm: true,
-      });
+      // Para admin inicial, usar signUp normal, para outros usar admin.createUser
+      let authData, authError;
+      
+      if (profile === 'admin') {
+        // Verificar se é o primeiro admin
+        const { count } = await supabase
+          .from('users')
+          .select('*', { count: 'exact' })
+          .eq('profile', 'admin');
+          
+        if (count === 0) {
+          // Primeiro admin - usar signUp
+          const result = await supabase.auth.signUp({
+            email,
+            password: 'nb@123',
+          });
+          authData = result.data;
+          authError = result.error;
+        } else {
+          // Admin subsequente - usar admin.createUser
+          const result = await supabase.auth.admin.createUser({
+            email,
+            password: 'nb@123',
+            email_confirm: true,
+          });
+          authData = result.data;
+          authError = result.error;
+        }
+      } else {
+        // Outros perfis - usar admin.createUser
+        const result = await supabase.auth.admin.createUser({
+          email,
+          password: 'nb@123',
+          email_confirm: true,
+        });
+        authData = result.data;
+        authError = result.error;
+      }
 
       if (authError || !authData.user) {
         return { error: authError?.message || 'Erro ao criar usuário' };
@@ -109,6 +141,48 @@ export const authService = {
           email,
           name,
           profile,
+        });
+
+      if (profileError) {
+        return { error: profileError.message };
+      }
+
+      return { error: null };
+    } catch {
+      return { error: 'Erro interno do sistema' };
+    }
+  },
+
+  async createFirstAdmin(email: string, name: string, password: string): Promise<{ error: string | null }> {
+    try {
+      // Verificar se já existe admin
+      const { count } = await supabase
+        .from('users')
+        .select('*', { count: 'exact' })
+        .eq('profile', 'admin');
+        
+      if (count && count > 0) {
+        return { error: 'Já existe um administrador no sistema' };
+      }
+
+      // Criar usuário com signUp
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (authError || !authData.user) {
+        return { error: authError?.message || 'Erro ao criar usuário' };
+      }
+
+      // Create user profile
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          email,
+          name,
+          profile: 'admin',
         });
 
       if (profileError) {
