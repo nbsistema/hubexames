@@ -79,7 +79,7 @@ export const authService = {
   async resetPassword(email: string): Promise<{ error: string | null }> {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}`,
+        redirectTo: `${window.location.origin}/reset-password`,
       });
 
       return { error: error?.message || null };
@@ -170,7 +170,7 @@ export const authService = {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}`,
+          emailRedirectTo: `${window.location.origin}/`,
           data: {
             name: name,
             profile: 'admin'
@@ -182,9 +182,19 @@ export const authService = {
         return { error: authError?.message || 'Erro ao criar usuário' };
       }
 
-      // O perfil será criado automaticamente pelo trigger
       // Aguardar um pouco para garantir que o trigger foi executado
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Verificar se o usuário foi criado corretamente
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (userError || !userData) {
+        return { error: 'Usuário criado mas perfil não foi configurado corretamente' };
+      }
 
       return { error: null };
     } catch {
