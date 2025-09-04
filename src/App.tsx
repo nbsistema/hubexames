@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginForm } from './components/LoginForm';
 import { Dashboard } from './components/Dashboard';
 import { Layout } from './components/Layout';
+import { ResetPassword } from './components/ResetPassword';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -33,6 +34,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<AppContent />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
