@@ -63,38 +63,18 @@ export function LoginForm() {
     setSetupMessage('');
 
     try {
-      // Criar usuário no Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: setupData.email,
-        password: setupData.password,
-      });
+      const { error } = await authService.createFirstAdmin(
+        setupData.email,
+        setupData.name,
+        setupData.password
+      );
 
-      if (authError) {
-        setSetupMessage(`Erro ao criar usuário: ${authError.message}`);
+      if (error) {
+        setSetupMessage(`Erro ao criar administrador: ${error}`);
         return;
       }
 
-      if (!authData.user) {
-        setSetupMessage('Erro ao criar usuário');
-        return;
-      }
-
-      // Criar perfil do usuário
-      const { error: profileError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          email: setupData.email,
-          name: setupData.name,
-          profile: 'admin',
-        });
-
-      if (profileError) {
-        setSetupMessage(`Erro ao criar perfil: ${profileError.message}`);
-        return;
-      }
-
-      setSetupMessage('Usuário administrador criado com sucesso! Faça login agora.');
+      setSetupMessage('Administrador criado com sucesso! Faça login agora.');
       setSetupData({ name: '', email: '', password: '' });
       setTimeout(() => {
         setShowInitialSetup(false);
