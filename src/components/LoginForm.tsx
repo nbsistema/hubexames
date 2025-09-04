@@ -63,6 +63,9 @@ export function LoginForm() {
     setSetupMessage('');
 
     try {
+      // Importar authService corretamente
+      const { authService } = await import('../lib/auth');
+      
       const { error } = await authService.createFirstAdmin(
         setupData.email,
         setupData.name,
@@ -74,13 +77,14 @@ export function LoginForm() {
         return;
       }
 
-      setSetupMessage('Administrador criado com sucesso! Faça login agora.');
+      setSetupMessage('Administrador criado com sucesso! Verifique seu email para confirmar a conta, depois faça login.');
       setSetupData({ name: '', email: '', password: '' });
       setTimeout(() => {
         setShowInitialSetup(false);
         setSetupMessage('');
-      }, 3000);
+      }, 5000);
     } catch (error) {
+      console.error('Setup error:', error);
       setSetupMessage('Erro interno do sistema');
     } finally {
       setSetupLoading(false);
