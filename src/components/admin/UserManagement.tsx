@@ -41,7 +41,7 @@ export function UserManagement() {
       const { error } = await authService.createUser(
         formData.email,
         formData.name,
-        alert('Usuário criado com sucesso! Senha padrão: nb@123');
+        formData.profile
       );
 
       if (error) {
