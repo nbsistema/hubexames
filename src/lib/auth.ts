@@ -78,10 +78,10 @@ export const authService = {
 
   async resetPassword(email: string): Promise<{ error: string | null }> {
     try {
-      // Usar a URL atual do site em vez de localhost
-      const currentUrl = window.location.origin;
+      // Usar a URL de produção
+      const redirectUrl = 'https://hub-exames.netlify.app/reset-password';
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${currentUrl}/reset-password`,
+        redirectTo: redirectUrl,
       });
 
       return { error: error?.message || null };
@@ -172,7 +172,7 @@ export const authService = {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/reset-password`,
+          emailRedirectTo: 'https://hub-exames.netlify.app/reset-password',
           data: {
             name: name,
             profile: 'admin'
