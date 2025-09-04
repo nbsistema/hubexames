@@ -41,18 +41,31 @@ export function ResetPassword() {
     setError('');
 
     try {
-      const { error } = await supabase.auth.updateUser({
+      // Primeiro, verificar se temos uma sessão válida
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        setError('Sessão inválida. Solicite um novo link de redefinição.');
+        setLoading(false);
+        return;
+      }
+
+      const { error } = await supabase.auth.updateUser({ 
         password: password
       });
 
       if (error) {
-        setError('Erro ao redefinir senha: ' + error.message);
+        console.error('Erro ao redefinir senha:', error);
+        setError('Erro ao redefinir senha. Tente novamente ou solicite um novo link.');
       } else {
         setMessage('Senha redefinida com sucesso! Redirecionando...');
-        setTimeout(() => navigate('/'), 2000);
+        // Fazer logout para forçar novo login com a nova senha
+        await supabase.auth.signOut();
+        setTimeout(() => navigate('/'), 3000);
       }
     } catch (err) {
-      setError('Erro interno do sistema');
+      console.error('Erro interno:', err);
+      setError('Erro interno do sistema. Tente novamente.');
     } finally {
       setLoading(false);
     }

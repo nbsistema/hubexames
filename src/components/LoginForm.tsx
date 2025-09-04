@@ -27,10 +27,15 @@ export function LoginForm() {
     setLoading(true);
     setError('');
 
-    const { error: signInError } = await signIn(email, password);
-    
-    if (signInError) {
-      setError('Email ou senha incorretos');
+    try {
+      const { error: signInError } = await signIn(email, password);
+      
+      if (signInError) {
+        setError('Email ou senha incorretos. Verifique suas credenciais.');
+      }
+    } catch (error) {
+      console.error('Erro no login:', error);
+      setError('Erro interno do sistema. Tente novamente.');
     }
     
     setLoading(false);

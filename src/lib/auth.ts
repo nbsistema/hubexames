@@ -92,65 +92,45 @@ export const authService = {
 
   async createUser(email: string, name: string, profile: UserProfile): Promise<{ error: string | null }> {
     try {
-      // Para admin inicial, usar signUp normal, para outros usar admin.createUser
-      let authData, authError;
-      
-      if (profile === 'admin') {
-        // Verificar se é o primeiro admin
-        const { count } = await supabase
-          .from('users')
-          .select('*', { count: 'exact' })
-          .eq('profile', 'admin');
-          
-        if (count === 0) {
-          // Primeiro admin - usar signUp
-          const result = await supabase.auth.signUp({
-            email,
-            password: 'nb@123',
-          });
-          authData = result.data;
-          authError = result.error;
-        } else {
-          // Admin subsequente - usar admin.createUser
-          const result = await supabase.auth.admin.createUser({
-            email,
-            password: 'nb@123',
-            email_confirm: true,
-          });
-          authData = result.data;
-          authError = result.error;
+      // Usar signUp para todos os usuários para garantir compatibilidade
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password: 'nb@123',
+        options: {
+          data: {
+            name: name,
+            profile: profile
+          }
         }
-      } else {
-        // Outros perfis - usar admin.createUser
-        const result = await supabase.auth.admin.createUser({
-          email,
-          password: 'nb@123',
-          email_confirm: true,
-        });
-        authData = result.data;
-        authError = result.error;
-      }
+      });
 
       if (authError || !authData.user) {
         return { error: authError?.message || 'Erro ao criar usuário' };
       }
 
-      // Create user profile
+      // Aguardar um pouco para garantir que o usuário foi criado
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Criar perfil do usuário na tabela users
       const { error: profileError } = await supabase
         .from('users')
-        .insert({
+        .upsert({
           id: authData.user.id,
           email,
           name,
           profile,
+        }, {
+          onConflict: 'id'
         });
 
       if (profileError) {
-        return { error: profileError.message };
+        console.error('Erro ao criar perfil:', profileError);
+        return { error: 'Erro ao criar perfil do usuário' };
       }
 
       return { error: null };
-    } catch {
+    } catch (error) {
+      console.error('Erro na criação do usuário:', error);
       return { error: 'Erro interno do sistema' };
     }
   },
@@ -167,12 +147,11 @@ export const authService = {
         return { error: 'Já existe um administrador no sistema' };
       }
 
-      // Criar usuário com signUp e confirmar email automaticamente
+      // Criar usuário com signUp
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: 'https://hub-exames.netlify.app/reset-password',
           data: {
             name: name,
             profile: 'admin'
@@ -184,20 +163,8 @@ export const authService = {
         return { error: authError?.message || 'Erro ao criar usuário' };
       }
 
-      // Se o usuário foi criado mas precisa confirmar email, vamos confirmar automaticamente
-      if (authData.user && !authData.user.email_confirmed_at) {
-        try {
-          // Tentar confirmar o email automaticamente usando admin API
-          await supabase.auth.admin.updateUserById(authData.user.id, {
-            email_confirm: true
-          });
-        } catch (adminError) {
-          console.log('Não foi possível confirmar email automaticamente:', adminError);
-        }
-      }
-
-      // Aguardar para garantir que o trigger foi executado
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Aguardar para garantir que o usuário foi criado
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       return { error: null };
     } catch (error) {
