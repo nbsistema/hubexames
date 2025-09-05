@@ -80,7 +80,11 @@ export const authService = {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError) {
-        console.error('❌ Erro ao verificar usuário:', authError);
+        if (authError.message === 'Auth session missing!') {
+          console.info('ℹ️ Nenhuma sessão ativa encontrada');
+        } else {
+          console.error('❌ Erro ao verificar usuário:', authError);
+        }
         return null;
       }
       
