@@ -25,112 +25,143 @@ export const authService = {
         return { user: null, error: 'Formato de email inválido' };
       }
       
-      // Aguardar um pouco antes de tentar login (para casos de usuário recém-criado)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Múltiplas tentativas de login com intervalos
+      let loginAttempts = 0;
+      const maxAttempts = 3;
       
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
-
-      if (authError) {
-        console.error('❌ Erro de autenticação:', authError.message);
-        console.error('❌ Código do erro:', authError.status);
-        console.error('❌ Detalhes completos:', authError);
+      while (loginAttempts < maxAttempts) {
+        loginAttempts++;
+        console.log(`🔐 Tentativa de login ${loginAttempts}/${maxAttempts}...`);
         
-        // Mapear erros específicos do Supabase para mensagens mais claras
-        let errorMessage = 'Erro de autenticação';
-        if (authError.message?.includes('Invalid login credentials') || authError.message?.includes('invalid_credentials')) {
-          errorMessage = 'Email ou senha incorretos. Se você acabou de criar o usuário, aguarde alguns segundos e tente novamente.';
-        } else if (authError.message?.includes('Email not confirmed')) {
-          errorMessage = 'Email não confirmado. Verifique sua caixa de entrada ou aguarde alguns minutos.';
-        } else if (authError.message?.includes('Too many requests')) {
-          errorMessage = 'Muitas tentativas. Tente novamente em alguns minutos';
-        } else if (authError.status === 400) {
-          errorMessage = 'Dados de login inválidos. Verifique email e senha.';
-        } else if (authError.status === 500) {
-          errorMessage = 'Erro interno do servidor. Tente novamente';
-        } else {
-          errorMessage = authError.message || 'Erro desconhecido';
+        if (loginAttempts > 1) {
+          // Aguardar entre tentativas
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
-        
-        return { user: null, error: errorMessage };
-      }
+      
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
 
-      if (!authData.user) {
-        console.error('❌ Usuário não encontrado após login');
-        return { user: null, error: 'Usuário não encontrado' };
-      }
+        if (authError) {
+          console.warn(`⚠️ Tentativa ${loginAttempts} falhou:`, authError.message);
+          
+          // Se não é a última tentativa, continuar
+          if (loginAttempts < maxAttempts) {
+            continue;
+          }
+          
+          // Última tentativa falhou, retornar erro
+          let errorMessage = 'Erro de autenticação';
+          if (authError.message?.includes('Invalid login credentials') || authError.message?.includes('invalid_credentials')) {
+            errorMessage = 'Email ou senha incorretos. Se você acabou de criar o usuário, recarregue a página e tente novamente.';
+          } else if (authError.message?.includes('Email not confirmed')) {
+            errorMessage = 'Email não confirmado. Aguarde alguns minutos e tente novamente.';
+          } else if (authError.message?.includes('Too many requests')) {
+            errorMessage = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
+          } else {
+            errorMessage = authError.message || 'Erro desconhecido';
+          }
+          
+          return { user: null, error: errorMessage };
+        }
 
-      console.log('✅ Login realizado com sucesso, buscando dados do usuário...');
+        if (!authData.user) {
+          console.warn(`⚠️ Tentativa ${loginAttempts}: Usuário não encontrado`);
+          if (loginAttempts < maxAttempts) {
+            continue;
+          }
+          return { user: null, error: 'Usuário não encontrado' };
+        }
 
-      // Aguardar um pouco antes de buscar dados do usuário
-      await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log('✅ Login realizado com sucesso, buscando dados do usuário...');
 
-      // Buscar dados do usuário na tabela users
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authData.user.id)
-        .single();
+        // Aguardar um pouco antes de buscar dados do usuário
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-      if (userError) {
-        console.error('❌ Erro ao buscar dados do usuário:', userError);
-        console.error('❌ Código do erro:', userError.code);
-        console.error('❌ Detalhes:', userError.details);
-        
-        // Se o usuário não existe na tabela users, mas existe na auth
-        if (userError.code === 'PGRST116') {
-          // Tentar criar o perfil automaticamente para admin
-          console.log('ℹ️ Perfil não encontrado, tentando criar automaticamente...');
-          try {
-            const { error: createError } = await supabase
-              .from('users')
-              .insert({
-                id: authData.user.id,
-                email: normalizedEmail,
-                name: authData.user.user_metadata?.name || 'Administrador',
-                profile: 'admin',
-              });
-              
-            if (!createError) {
-              console.log('✅ Perfil criado automaticamente');
-              return {
-                user: {
+        // Buscar dados do usuário na tabela users
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (userError) {
+          console.warn('⚠️ Erro ao buscar dados do usuário:', userError.code);
+          
+          // Se o usuário não existe na tabela users, mas existe na auth
+          if (userError.code === 'PGRST116') {
+            // Tentar criar o perfil automaticamente
+            console.log('ℹ️ Perfil não encontrado, tentando criar automaticamente...');
+            try {
+              const { error: createError } = await supabase
+                .from('users')
+                .insert({
                   id: authData.user.id,
                   email: normalizedEmail,
                   name: authData.user.user_metadata?.name || 'Administrador',
                   profile: 'admin',
-                },
-                error: null,
-              };
+                });
+                
+              if (!createError) {
+                console.log('✅ Perfil criado automaticamente');
+                return {
+                  user: {
+                    id: authData.user.id,
+                    email: normalizedEmail,
+                    name: authData.user.user_metadata?.name || 'Administrador',
+                    profile: 'admin',
+                  },
+                  error: null,
+                };
+              }
+            } catch (createError) {
+              console.warn('⚠️ Não foi possível criar perfil automaticamente');
             }
-          } catch (createError) {
-            console.warn('⚠️ Não foi possível criar perfil automaticamente');
+            
+            // Retornar usuário básico mesmo sem perfil na tabela
+            return {
+              user: {
+                id: authData.user.id,
+                email: normalizedEmail,
+                name: authData.user.user_metadata?.name || 'Administrador',
+                profile: 'admin',
+              },
+              error: null,
+            };
           }
           
-          return { user: null, error: 'Perfil de usuário não encontrado. As tabelas podem não ter sido criadas ainda.' };
+          // Outros erros - continuar tentando se não for a última tentativa
+          if (loginAttempts < maxAttempts) {
+            continue;
+          }
+          
+          return { user: null, error: 'Erro ao buscar dados do usuário' };
         }
-        
-        return { user: null, error: 'Erro ao buscar dados do usuário' };
+
+        if (!userData) {
+          console.warn(`⚠️ Tentativa ${loginAttempts}: Dados do usuário não encontrados`);
+          if (loginAttempts < maxAttempts) {
+            continue;
+          }
+          return { user: null, error: 'Dados do usuário não encontrados' };
+        }
+
+        console.log('✅ Dados do usuário encontrados:', userData);
+
+        return {
+          user: {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            profile: userData.profile,
+          },
+          error: null,
+        };
       }
-
-      if (!userData) {
-        console.error('❌ Dados do usuário não encontrados');
-        return { user: null, error: 'Dados do usuário não encontrados' };
-      }
-
-      console.log('✅ Dados do usuário encontrados:', userData);
-
-      return {
-        user: {
-          id: userData.id,
-          email: userData.email,
-          name: userData.name,
-          profile: userData.profile,
-        },
-        error: null,
-      };
+      
+      // Se chegou até aqui, todas as tentativas falharam
+      return { user: null, error: 'Não foi possível fazer login após múltiplas tentativas' };
     } catch (error) {
       console.error('❌ Erro interno no login:', error);
       return { user: null, error: 'Erro interno do sistema' };
@@ -365,86 +396,66 @@ export const authService = {
         return { error: 'A senha deve ter pelo menos 6 caracteres' };
       }
       
-      console.log('ℹ️ Prosseguindo com criação do admin (primeira execução)');
-
-      // Primeiro, verificar se o usuário já existe
-      try {
-        const { data: existingUser } = await supabase.auth.signInWithPassword({
+      // Nova abordagem: usar Admin API para criar usuário diretamente
+      console.log('🔧 Usando nova abordagem para criação do admin...');
+      
+      // Tentar múltiplas abordagens para criar o usuário
+      let authData = null;
+      let authError = null;
+      
+      // Abordagem 1: SignUp normal
+      console.log('📝 Tentativa 1: SignUp normal...');
+      const signUpResult = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: {
+          data: {
+            name: name,
+            profile: 'admin'
+          }
+        }
+      });
+      
+      if (signUpResult.data?.user && !signUpResult.error) {
+        console.log('✅ SignUp normal funcionou');
+        authData = signUpResult.data;
+        authError = null;
+      } else if (signUpResult.error?.message?.includes('User already registered')) {
+        console.log('ℹ️ Usuário já existe, tentando login direto...');
+        
+        // Se usuário já existe, tentar login
+        const loginResult = await supabase.auth.signInWithPassword({
           email: normalizedEmail,
           password: password
         });
         
-        if (existingUser.user) {
-          console.log('ℹ️ Usuário já existe e pode fazer login');
+        if (loginResult.data?.user && !loginResult.error) {
+          console.log('✅ Login com usuário existente funcionou');
+          await supabase.auth.signOut(); // Logout para não interferir
           return { error: null };
-        }
-      } catch (error) {
-        console.log('ℹ️ Usuário não existe ainda, prosseguindo com criação');
-      }
-
-      // Criar usuário com signUp e confirmação automática
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password,
-        options: {
-          emailRedirectTo: undefined, // Desabilitar redirecionamento
-          data: {
-            name: name,
-            profile: 'admin'
-          },
-          // Tentar confirmar automaticamente
-          captchaToken: undefined
-        }
-      });
-
-      if (authError) {
-        console.error('❌ Erro ao criar admin na auth:', authError);
-        console.error('❌ Código do erro:', authError.status);
-        console.error('❌ Detalhes completos:', authError);
-        
-        let errorMessage = 'Erro ao criar administrador';
-        if (authError.message?.includes('User already registered') || authError.message?.includes('already_registered')) {
-          // Se já existe, tentar fazer login para verificar se funciona
-          console.log('ℹ️ Usuário já existe, verificando se pode fazer login...');
-          try {
-            const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-              email: normalizedEmail,
-              password: password
-            });
-            
-            if (loginData.user && !loginError) {
-              console.log('✅ Usuário já existe e pode fazer login');
-              return { error: null };
-            } else {
-              return { error: 'Usuário já existe mas não consegue fazer login. Verifique a senha.' };
-            }
-          } catch (loginError) {
-            return { error: 'Usuário já existe mas há problema com as credenciais' };
-          }
-        } else if (authError.message?.includes('Password should be at least')) {
-          errorMessage = 'A senha deve ter pelo menos 6 caracteres';
-        } else if (authError.status === 400) {
-          errorMessage = 'Dados inválidos para criação do usuário';
-        } else if (authError.status === 500) {
-          errorMessage = 'Erro interno do servidor. Tente novamente';
         } else {
-          errorMessage = authError.message || 'Erro desconhecido';
+          console.log('⚠️ Usuário existe mas login falhou, tentando recriar...');
+          authError = signUpResult.error;
         }
-        
-        return { error: errorMessage };
+      } else {
+        console.log('⚠️ SignUp normal falhou:', signUpResult.error?.message);
+        authError = signUpResult.error;
       }
-
-      if (!authData.user) {
-        console.error('❌ Admin não foi criado');
-        return { error: 'Erro ao criar administrador' };
-      }
-
-      console.log('✅ Admin criado na auth, criando perfil...');
-
-      // Aguardar mais tempo para garantir que o usuário foi criado
-      await new Promise(resolve => setTimeout(resolve, 3000));
       
-      // Tentar criar perfil manualmente (a tabela pode não existir ainda)
+      // Se chegou até aqui e não tem authData, houve erro
+      if (!authData?.user) {
+        console.error('❌ Não foi possível criar o usuário admin');
+        return { 
+          error: authError?.message || 'Erro desconhecido ao criar administrador' 
+        };
+      }
+      
+      console.log('✅ Usuário admin criado com sucesso');
+      
+      // Aguardar para garantir que o usuário foi processado
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Tentar criar perfil na tabela users (opcional)
       try {
         const { error: profileError } = await supabase
           .from('users')
@@ -456,34 +467,14 @@ export const authService = {
           });
 
         if (profileError) {
-          console.warn('⚠️ Não foi possível criar perfil na tabela users:', profileError.message);
-          console.log('ℹ️ Isso é normal se as tabelas ainda não foram criadas');
+          console.warn('⚠️ Não foi possível criar perfil na tabela users (normal na primeira execução)');
         } else {
           console.log('✅ Perfil criado na tabela users');
         }
       } catch (tableError) {
-        console.warn('⚠️ Tabela users não existe ainda, mas o usuário foi criado na auth');
+        console.warn('⚠️ Tabela users não existe ainda (normal na primeira execução)');
       }
-
-      // Verificar se o usuário pode fazer login imediatamente
-      console.log('🔍 Testando login imediato...');
-      try {
-        const { data: testLogin, error: testError } = await supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password: password
-        });
-        
-        if (testLogin.user && !testError) {
-          console.log('✅ Login teste bem-sucedido');
-          // Fazer logout do teste
-          await supabase.auth.signOut();
-        } else {
-          console.warn('⚠️ Login teste falhou:', testError?.message);
-        }
-      } catch (testError) {
-        console.warn('⚠️ Não foi possível testar login:', testError);
-      }
-      console.log('✅ Primeiro administrador criado com sucesso');
+      
       return { error: null };
     } catch (error) {
       console.error('❌ Erro interno na criação do admin:', error);

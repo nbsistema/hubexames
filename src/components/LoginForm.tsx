@@ -377,9 +377,10 @@ export function LoginForm() {
             <p className="text-sm text-blue-800">
               <strong>Importante:</strong> 
               <br />• O sistema criará automaticamente todas as tabelas necessárias
-              <br />• Após criar o administrador, aguarde 5 segundos e faça login
+              <br />• Após criar o administrador, aguarde alguns segundos e faça login
               <br />• Para novos usuários criados pelo admin, a senha padrão é: <code className="bg-blue-100 px-1 rounded">nb@123</code>
-              <br />• Todas as migrações são executadas automaticamente
+              <br />• Se der erro de credenciais, aguarde mais um pouco e tente novamente
+              <br />• Em caso de problemas persistentes, recarregue a página
             </p>
           </div>
         </div>

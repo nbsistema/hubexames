@@ -23,7 +23,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
-    flowType: 'pkce',
+    flowType: 'implicit',
     debug: import.meta.env.DEV
   },
   global: {
