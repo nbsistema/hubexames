@@ -4,6 +4,25 @@ export const databaseService = {
   async createTables(): Promise<{ success: boolean; error?: string }> {
     try {
       console.log('🗄️ Criando tabelas do banco de dados...');
+      
+      // Primeiro, criar função SQL personalizada para criar usuários
+      const createUserFunction = `
+        CREATE OR REPLACE FUNCTION create_user_direct(
+          user_id uuid,
+          user_email text,
+          user_password text,
+          user_name text,
+          user_profile text
+        )
+        RETURNS void AS $$
+        BEGIN
+          -- Inserir na tabela users se não existir
+          INSERT INTO users (id, email, name, profile, created_at, updated_at)
+          VALUES (user_id, user_email, user_name, user_profile, now(), now())
+          ON CONFLICT (email) DO NOTHING;
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+      `;
 
       // 1. Criar função para atualizar updated_at
       const updateFunction = `
@@ -298,6 +317,7 @@ export const databaseService = {
 
       // Executar todos os comandos SQL
       const sqlCommands = [
+        createUserFunction,
         updateFunction,
         usersTable,
         usersIndexes,

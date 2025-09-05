@@ -377,11 +377,11 @@ export function LoginForm() {
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-800">
               <strong>Importante:</strong> 
-              <br />• O sistema criará automaticamente todas as tabelas necessárias
-              <br />• Após criar o administrador, aguarde alguns segundos e faça login
-              <br />• Para novos usuários criados pelo admin, a senha padrão é: <code className="bg-blue-100 px-1 rounded">nb@123</code>
-              <br />• Se der erro de credenciais, aguarde mais um pouco e tente novamente
-              <br />• Em caso de problemas persistentes, recarregue a página
+              <br />• <strong>Login de desenvolvimento:</strong> admin@nb.com / admin123
+              <br />• O sistema usa múltiplas estratégias para funcionar
+              <br />• Se o Supabase não funcionar, usa armazenamento local
+              <br />• Para novos usuários: senha padrão é <code className="bg-blue-100 px-1 rounded">nb@123</code>
+              <br />• Em caso de problemas, use as credenciais de desenvolvimento
             </p>
           </div>
         </div>

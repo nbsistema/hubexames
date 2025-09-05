@@ -22,13 +22,16 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false,
-    flowType: 'implicit',
+    detectSessionInUrl: true,
+    flowType: 'pkce',
     debug: import.meta.env.DEV
   },
   global: {
     headers: {
       'apikey': supabaseAnonKey,
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
     },
   },
   db: {
