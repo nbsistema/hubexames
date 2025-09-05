@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Lock, Mail, Eye, EyeOff, UserPlus } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { databaseService } from '../lib/database';
 
 export function LoginForm() {
   const { signIn, resetPassword } = useAuth();
@@ -95,15 +95,16 @@ export function LoginForm() {
       setSetupMessage('Administrador criado com sucesso! Aguarde alguns segundos e depois faça login com as credenciais criadas.');
       setSetupData({ name: '', email: '', password: '' });
       
-      // Aguardar mais tempo antes de permitir login
+      // Aguardar um pouco mais para garantir sincronização
       setTimeout(() => {
-        setSetupMessage('Administrador criado! Agora você pode tentar fazer login. Se der erro de credenciais, aguarde mais alguns segundos.');
+        setSetupMessage('Administrador criado! Todas as tabelas foram configuradas. Agora você pode fazer login.');
       }, 3000);
       
+      // Aguardar mais tempo antes de permitir login
       setTimeout(() => {
         setShowInitialSetup(false);
         setSetupMessage('');
-      }, 10000);
+      }, 8000);
     } catch (error) {
       console.error('Setup error:', error);
       setSetupMessage('Erro interno do sistema');

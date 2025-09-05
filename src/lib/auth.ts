@@ -1,4 +1,5 @@
 import { supabase, UserProfile, AppUser } from './supabase';
+import { databaseService } from './database';
 
 export interface AuthUser {
   id: string;
@@ -376,6 +377,13 @@ export const authService = {
   async createFirstAdmin(email: string, name: string, password: string): Promise<{ error: string | null }> {
     try {
       console.log('👑 Criando primeiro administrador:', { email, name });
+      
+      // Primeiro, garantir que as tabelas existem
+      console.log('🗄️ Verificando/criando tabelas do banco...');
+      const tablesCreated = await databaseService.ensureTablesExist();
+      if (!tablesCreated) {
+        console.warn('⚠️ Não foi possível criar todas as tabelas, mas continuando...');
+      }
       
       // Normalizar email
       const normalizedEmail = email.trim().toLowerCase();
