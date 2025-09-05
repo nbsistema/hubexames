@@ -28,6 +28,8 @@ export const envValidator = {
       // Validar formato da chave (deve ser um JWT)
       if (!supabaseKey.startsWith('eyJ')) {
         errors.push('❌ VITE_SUPABASE_ANON_KEY não parece ser um JWT válido');
+      } else if (supabaseKey.includes('EXEMPLO_SUBSTITUA_PELA_CHAVE_REAL')) {
+        errors.push('⚠️ VITE_SUPABASE_ANON_KEY ainda é a chave de exemplo - substitua pela chave real do seu projeto');
       } else {
         console.log('✅ Chave anônima do Supabase presente e com formato correto');
         console.log('🔑 Primeiros 30 caracteres:', supabaseKey.substring(0, 30) + '...');
