@@ -33,7 +33,7 @@ export function LoginForm() {
       
       if (signInError) {
         console.error('❌ Erro no login:', signInError);
-        setError('Email ou senha incorretos. Verifique suas credenciais.');
+        setError(signInError);
       } else {
         console.log('✅ Login realizado com sucesso');
       }
@@ -359,7 +359,7 @@ export function LoginForm() {
 
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-800">
-              <strong>Importante:</strong> Após criar o administrador, você pode fazer login imediatamente. Não é necessário confirmar email.
+              <strong>Importante:</strong> Após criar o administrador, você pode fazer login imediatamente com as credenciais criadas. A senha padrão para novos usuários é: <code className="bg-blue-100 px-1 rounded">nb@123</code>
             </p>
           </div>
         </div>

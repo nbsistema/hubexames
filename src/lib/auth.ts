@@ -10,7 +10,7 @@ export interface AuthUser {
 export const authService = {
   async signIn(email: string, password: string): Promise<{ user: AuthUser | null; error: string | null }> {
     try {
-      console.log('🔐 Tentando fazer login com:', email);
+      console.log('🔐 Tentando fazer login com:', email.trim().toLowerCase());
       
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
@@ -18,8 +18,21 @@ export const authService = {
       });
 
       if (authError) {
-        console.error('❌ Erro de autenticação:', authError);
-        return { user: null, error: authError.message };
+        console.error('❌ Erro de autenticação:', authError.message);
+        
+        // Mapear erros específicos do Supabase para mensagens mais claras
+        let errorMessage = 'Erro de autenticação';
+        if (authError.message.includes('Invalid login credentials')) {
+          errorMessage = 'Email ou senha incorretos';
+        } else if (authError.message.includes('Email not confirmed')) {
+          errorMessage = 'Email não confirmado';
+        } else if (authError.message.includes('Too many requests')) {
+          errorMessage = 'Muitas tentativas. Tente novamente em alguns minutos';
+        } else {
+          errorMessage = authError.message;
+        }
+        
+        return { user: null, error: errorMessage };
       }
 
       if (!authData.user) {
@@ -147,22 +160,35 @@ export const authService = {
     try {
       console.log('👥 Criando usuário:', { email, name, profile });
       
+      // Normalizar email
+      const normalizedEmail = email.trim().toLowerCase();
+      
       // Primeiro, criar o usuário na autenticação
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password: 'nb@123',
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: `${window.location.origin}/reset-password`,
           data: {
             name: name,
             profile: profile
-          }
+          },
+          // Desabilitar confirmação de email
+          emailRedirectTo: undefined
         }
       });
 
       if (authError) {
         console.error('❌ Erro ao criar usuário na auth:', authError);
-        return { error: authError.message };
+        
+        let errorMessage = 'Erro ao criar usuário';
+        if (authError.message.includes('User already registered')) {
+          errorMessage = 'Este email já está cadastrado no sistema';
+        } else {
+          errorMessage = authError.message;
+        }
+        
+        return { error: errorMessage };
       }
 
       if (!authData.user) {
@@ -172,24 +198,41 @@ export const authService = {
 
       console.log('✅ Usuário criado na auth, criando perfil...');
 
-      // Aguardar um pouco para garantir que o usuário foi criado
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Aguardar para garantir que o usuário foi criado
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Criar perfil do usuário na tabela users
       const { error: profileError } = await supabase
         .from('users')
-        .upsert({
+        .insert({
           id: authData.user.id,
-          email: email.trim().toLowerCase(),
+          email: normalizedEmail,
           name,
           profile,
-        }, {
-          onConflict: 'id'
         });
 
       if (profileError) {
         console.error('❌ Erro ao criar perfil:', profileError);
-        return { error: 'Erro ao criar perfil do usuário' };
+        
+        // Se o perfil já existe, tentar atualizar
+        if (profileError.code === '23505') { // Unique violation
+          console.log('ℹ️ Perfil já existe, tentando atualizar...');
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({
+              email: normalizedEmail,
+              name,
+              profile,
+            })
+            .eq('id', authData.user.id);
+            
+          if (updateError) {
+            console.error('❌ Erro ao atualizar perfil:', updateError);
+            return { error: 'Erro ao criar perfil do usuário' };
+          }
+        } else {
+          return { error: 'Erro ao criar perfil do usuário' };
+        }
       }
 
       console.log('✅ Usuário criado com sucesso');
@@ -203,6 +246,9 @@ export const authService = {
   async createFirstAdmin(email: string, name: string, password: string): Promise<{ error: string | null }> {
     try {
       console.log('👑 Criando primeiro administrador:', { email, name });
+      
+      // Normalizar email
+      const normalizedEmail = email.trim().toLowerCase();
       
       // Verificar se já existe admin
       const { count, error: countError } = await supabase
@@ -222,20 +268,32 @@ export const authService = {
 
       // Criar usuário com signUp
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: `${window.location.origin}/reset-password`,
           data: {
             name: name,
             profile: 'admin'
-          }
+          },
+          // Desabilitar confirmação de email para o primeiro admin
+          emailRedirectTo: undefined
         }
       });
 
       if (authError) {
         console.error('❌ Erro ao criar admin na auth:', authError);
-        return { error: authError.message };
+        
+        let errorMessage = 'Erro ao criar administrador';
+        if (authError.message.includes('User already registered')) {
+          errorMessage = 'Este email já está cadastrado no sistema';
+        } else if (authError.message.includes('Password should be at least')) {
+          errorMessage = 'A senha deve ter pelo menos 6 caracteres';
+        } else {
+          errorMessage = authError.message;
+        }
+        
+        return { error: errorMessage };
       }
 
       if (!authData.user) {
@@ -245,24 +303,41 @@ export const authService = {
 
       console.log('✅ Admin criado na auth, criando perfil...');
 
-      // Aguardar para garantir que o usuário foi criado
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Aguardar para garantir que o usuário foi criado no auth
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Criar perfil do admin na tabela users
       const { error: profileError } = await supabase
         .from('users')
-        .upsert({
+        .insert({
           id: authData.user.id,
-          email: email.trim().toLowerCase(),
+          email: normalizedEmail,
           name,
           profile: 'admin',
-        }, {
-          onConflict: 'id'
         });
 
       if (profileError) {
         console.error('❌ Erro ao criar perfil do admin:', profileError);
-        return { error: 'Erro ao criar perfil do administrador' };
+        
+        // Se o perfil já existe, tentar atualizar
+        if (profileError.code === '23505') { // Unique violation
+          console.log('ℹ️ Perfil já existe, tentando atualizar...');
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({
+              email: normalizedEmail,
+              name,
+              profile: 'admin',
+            })
+            .eq('id', authData.user.id);
+            
+          if (updateError) {
+            console.error('❌ Erro ao atualizar perfil:', updateError);
+            return { error: 'Erro ao criar perfil do administrador' };
+          }
+        } else {
+          return { error: 'Erro ao criar perfil do administrador' };
+        }
       }
 
       console.log('✅ Primeiro administrador criado com sucesso');
