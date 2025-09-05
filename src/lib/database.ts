@@ -318,6 +318,7 @@ export const databaseService = {
       // Executar todos os comandos SQL
       const sqlCommands = [
         createUserFunction,
+        createUserFunction,
         updateFunction,
         usersTable,
         usersIndexes,
