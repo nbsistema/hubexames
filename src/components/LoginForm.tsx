@@ -359,7 +359,7 @@ export function LoginForm() {
 
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-800">
-              <strong>Importante:</strong> Após criar o administrador, você pode fazer login imediatamente com as credenciais criadas. A senha padrão para novos usuários é: <code className="bg-blue-100 px-1 rounded">nb@123</code>
+              <strong>Importante:</strong> Após criar o administrador, aguarde alguns segundos e então faça login com as credenciais criadas. Para novos usuários criados pelo admin, a senha padrão é: <code className="bg-blue-100 px-1 rounded">nb@123</code>
             </p>
           </div>
         </div>

@@ -12,24 +12,43 @@ export const authService = {
     try {
       console.log('🔐 Tentando fazer login com:', email.trim().toLowerCase());
       
+      // Validar entrada
+      if (!email || !password) {
+        return { user: null, error: 'Email e senha são obrigatórios' };
+      }
+      
+      const normalizedEmail = email.trim().toLowerCase();
+      
+      // Validar formato do email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(normalizedEmail)) {
+        return { user: null, error: 'Formato de email inválido' };
+      }
+      
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
       });
 
       if (authError) {
         console.error('❌ Erro de autenticação:', authError.message);
+        console.error('❌ Código do erro:', authError.status);
+        console.error('❌ Detalhes completos:', authError);
         
         // Mapear erros específicos do Supabase para mensagens mais claras
         let errorMessage = 'Erro de autenticação';
-        if (authError.message.includes('Invalid login credentials')) {
+        if (authError.message?.includes('Invalid login credentials') || authError.message?.includes('invalid_credentials')) {
           errorMessage = 'Email ou senha incorretos';
-        } else if (authError.message.includes('Email not confirmed')) {
+        } else if (authError.message?.includes('Email not confirmed')) {
           errorMessage = 'Email não confirmado';
-        } else if (authError.message.includes('Too many requests')) {
+        } else if (authError.message?.includes('Too many requests')) {
           errorMessage = 'Muitas tentativas. Tente novamente em alguns minutos';
+        } else if (authError.status === 400) {
+          errorMessage = 'Dados de login inválidos';
+        } else if (authError.status === 500) {
+          errorMessage = 'Erro interno do servidor. Tente novamente';
         } else {
-          errorMessage = authError.message;
+          errorMessage = authError.message || 'Erro desconhecido';
         }
         
         return { user: null, error: errorMessage };
@@ -51,6 +70,14 @@ export const authService = {
 
       if (userError) {
         console.error('❌ Erro ao buscar dados do usuário:', userError);
+        console.error('❌ Código do erro:', userError.code);
+        console.error('❌ Detalhes:', userError.details);
+        
+        // Se o usuário não existe na tabela users, mas existe na auth
+        if (userError.code === 'PGRST116') {
+          return { user: null, error: 'Perfil de usuário não encontrado. Entre em contato com o administrador.' };
+        }
+        
         return { user: null, error: 'Erro ao buscar dados do usuário' };
       }
 
@@ -250,6 +277,22 @@ export const authService = {
       // Normalizar email
       const normalizedEmail = email.trim().toLowerCase();
       
+      // Validar entrada
+      if (!normalizedEmail || !name.trim() || !password) {
+        return { error: 'Todos os campos são obrigatórios' };
+      }
+      
+      // Validar formato do email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(normalizedEmail)) {
+        return { error: 'Formato de email inválido' };
+      }
+      
+      // Validar senha
+      if (password.length < 6) {
+        return { error: 'A senha deve ter pelo menos 6 caracteres' };
+      }
+      
       // Verificar se já existe admin
       const { count, error: countError } = await supabase
         .from('users')
@@ -258,6 +301,8 @@ export const authService = {
         
       if (countError) {
         console.error('❌ Erro ao verificar admins existentes:', countError);
+        console.error('❌ Código do erro:', countError.code);
+        console.error('❌ Detalhes:', countError.details);
         return { error: 'Erro ao verificar sistema' };
       }
         
@@ -271,26 +316,29 @@ export const authService = {
         email: normalizedEmail,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/reset-password`,
           data: {
             name: name,
             profile: 'admin'
-          },
-          // Desabilitar confirmação de email para o primeiro admin
-          emailRedirectTo: undefined
+          }
         }
       });
 
       if (authError) {
         console.error('❌ Erro ao criar admin na auth:', authError);
+        console.error('❌ Código do erro:', authError.status);
+        console.error('❌ Detalhes completos:', authError);
         
         let errorMessage = 'Erro ao criar administrador';
-        if (authError.message.includes('User already registered')) {
+        if (authError.message?.includes('User already registered') || authError.message?.includes('already_registered')) {
           errorMessage = 'Este email já está cadastrado no sistema';
-        } else if (authError.message.includes('Password should be at least')) {
+        } else if (authError.message?.includes('Password should be at least')) {
           errorMessage = 'A senha deve ter pelo menos 6 caracteres';
+        } else if (authError.status === 400) {
+          errorMessage = 'Dados inválidos para criação do usuário';
+        } else if (authError.status === 500) {
+          errorMessage = 'Erro interno do servidor. Tente novamente';
         } else {
-          errorMessage = authError.message;
+          errorMessage = authError.message || 'Erro desconhecido';
         }
         
         return { error: errorMessage };
@@ -304,7 +352,7 @@ export const authService = {
       console.log('✅ Admin criado na auth, criando perfil...');
 
       // Aguardar para garantir que o usuário foi criado no auth
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Criar perfil do admin na tabela users
       const { error: profileError } = await supabase
@@ -318,6 +366,8 @@ export const authService = {
 
       if (profileError) {
         console.error('❌ Erro ao criar perfil do admin:', profileError);
+        console.error('❌ Código do erro:', profileError.code);
+        console.error('❌ Detalhes:', profileError.details);
         
         // Se o perfil já existe, tentar atualizar
         if (profileError.code === '23505') { // Unique violation

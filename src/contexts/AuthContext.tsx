@@ -19,6 +19,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initAuth = async () => {
       try {
         console.log('🔄 Inicializando autenticação...');
+        
+        // Verificar se o Supabase está configurado
+        if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+          console.error('❌ Variáveis de ambiente do Supabase não configuradas');
+          setLoading(false);
+          return;
+        }
+        
         const currentUser = await authService.getCurrentUser();
         if (currentUser) {
           console.log('✅ Usuário encontrado:', currentUser);
@@ -27,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         setUser(currentUser);
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        console.error('❌ Erro ao inicializar autenticação:', error);
       } finally {
         setLoading(false);
       }

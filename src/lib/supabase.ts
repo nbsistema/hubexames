@@ -4,22 +4,57 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ Missing Supabase environment variables');
+  console.error('VITE_SUPABASE_URL:', supabaseUrl);
+  console.error('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Present' : 'Missing');
   throw new Error('❌ Missing Supabase environment variables');
+}
+
+// Validar formato da URL
+try {
+  new URL(supabaseUrl);
+} catch (error) {
+  console.error('❌ Invalid Supabase URL format:', supabaseUrl);
+  throw new Error('❌ Invalid Supabase URL format');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false, // Desabilitar para evitar conflitos
-    flowType: 'pkce'
+    detectSessionInUrl: false,
+    flowType: 'pkce',
+    debug: import.meta.env.DEV
+  },
+  global: {
+    headers: {
+      'apikey': supabaseAnonKey,
+    },
+  },
+  db: {
+    schema: 'public',
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 2,
+    },
   },
 });
 
-// 🚀 DEBUG: loga a URL e chave usada (apenas no dev, remova em produção)
+// Debug logs
 if (import.meta.env.DEV) {
   console.log('🔗 Supabase URL:', supabaseUrl);
-  console.log('🔑 Supabase anon key (início):', supabaseAnonKey.slice(0, 8));
+  console.log('🔑 Supabase anon key (início):', supabaseAnonKey?.slice(0, 20) + '...');
+  
+  // Testar conexão
+  supabase.from('users').select('count', { count: 'exact', head: true })
+    .then(({ error }) => {
+      if (error) {
+        console.error('❌ Erro de conexão com Supabase:', error);
+      } else {
+        console.log('✅ Conexão com Supabase estabelecida');
+      }
+    });
 }
 
 // Tipos auxiliares
