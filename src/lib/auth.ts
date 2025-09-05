@@ -170,7 +170,7 @@ export const authService = {
       console.log('✅ Usuário autenticado encontrado, buscando dados...');
 
       try {
-        const { data: userData, error: userError } = await supabase
+        let { data: userData, error: userError } = await supabase
           .from('users')
           .select('*')
           .eq('id', user.id)
