@@ -27,8 +27,23 @@ export function LoginForm() {
     setLoading(true);
     setError('');
 
+    // Validação no frontend
+    if (!email.trim() || !password.trim()) {
+      setError('Email e senha são obrigatórios');
+      setLoading(false);
+      return;
+    }
+    
+    if (!email.includes('@')) {
+      setError('Email deve ter formato válido');
+      setLoading(false);
+      return;
+    }
     try {
       console.log('🔐 Iniciando processo de login...');
+      console.log('📧 Email:', email.trim().toLowerCase());
+      console.log('🔒 Senha length:', password.length);
+      
       const { error: signInError } = await signIn(email, password);
       
       if (signInError) {
@@ -39,7 +54,7 @@ export function LoginForm() {
       }
     } catch (error) {
       console.error('Erro no login:', error);
-      setError('Erro interno do sistema. Tente novamente.');
+      setError(`Erro interno do sistema: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
     
     setLoading(false);
@@ -74,8 +89,30 @@ export function LoginForm() {
     setSetupLoading(true);
     setSetupMessage('');
 
+    // Validação no frontend
+    if (!setupData.email.trim() || !setupData.name.trim() || !setupData.password.trim()) {
+      setSetupMessage('Todos os campos são obrigatórios');
+      setSetupLoading(false);
+      return;
+    }
+    
+    if (!setupData.email.includes('@')) {
+      setSetupMessage('Email deve ter formato válido');
+      setSetupLoading(false);
+      return;
+    }
+    
+    if (setupData.password.length < 6) {
+      setSetupMessage('Senha deve ter pelo menos 6 caracteres');
+      setSetupLoading(false);
+      return;
+    }
     try {
       console.log('👑 Iniciando criação do primeiro admin...');
+      console.log('📧 Email:', setupData.email.trim().toLowerCase());
+      console.log('👤 Nome:', setupData.name.trim());
+      console.log('🔒 Senha length:', setupData.password.length);
+      
       // Importar authService corretamente
       const { authService } = await import('../lib/auth');
       
@@ -92,22 +129,17 @@ export function LoginForm() {
       }
 
       console.log('✅ Administrador criado com sucesso');
-      setSetupMessage('Administrador criado com sucesso! Aguarde alguns segundos e depois faça login com as credenciais criadas.');
+      setSetupMessage('Administrador criado com sucesso! Você pode fazer login agora com as credenciais criadas.');
       setSetupData({ name: '', email: '', password: '' });
       
-      // Aguardar um pouco mais para garantir sincronização
-      setTimeout(() => {
-        setSetupMessage('Administrador criado! Todas as tabelas foram configuradas. Agora você pode fazer login.');
-      }, 3000);
-      
-      // Aguardar mais tempo antes de permitir login
+      // Aguardar um pouco para garantir sincronização
       setTimeout(() => {
         setShowInitialSetup(false);
         setSetupMessage('');
-      }, 8000);
+      }, 5000);
     } catch (error) {
       console.error('Setup error:', error);
-      setSetupMessage('Erro interno do sistema');
+      setSetupMessage(`Erro interno do sistema: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setSetupLoading(false);
     }

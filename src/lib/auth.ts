@@ -132,12 +132,38 @@ export const authService = {
       
       const normalizedEmail = email.trim().toLowerCase();
       
+      // Validar entrada
+      if (!normalizedEmail || !password) {
+        return { user: null, error: 'Email e senha são obrigatórios' };
+      }
+      
+      if (!normalizedEmail.includes('@')) {
+        return { user: null, error: 'Email deve ter formato válido' };
+      }
+      
+      if (password.length < 3) {
+        return { user: null, error: 'Senha deve ter pelo menos 3 caracteres' };
+      }
+      
       // Estratégia 1: Tentar login normal do Supabase
       console.log('📝 Estratégia 1: Login normal...');
       try {
+        // Limpar sessão anterior se existir
+        await supabase.auth.signOut();
+        
+        // Aguardar um pouco para garantir que a sessão foi limpa
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
           email: normalizedEmail,
           password,
+        });
+
+        console.log('🔍 Resposta do Supabase:', { 
+          hasUser: !!authData?.user, 
+          hasSession: !!authData?.session,
+          errorCode: authError?.status,
+          errorMessage: authError?.message 
         });
 
         if (authData?.user && !authError) {
@@ -145,6 +171,9 @@ export const authService = {
           
           // Tentar buscar dados do usuário
           try {
+            // Aguardar um pouco para garantir que a sessão foi estabelecida
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
             const { data: userData } = await supabase
               .from('users')
               .select('*')
@@ -176,9 +205,29 @@ export const authService = {
             },
             error: null,
           };
+        } else if (authError) {
+          console.warn('⚠️ Erro específico do Supabase:', {
+            status: authError.status,
+            message: authError.message,
+            details: authError
+          });
+          
+          // Mapear erros específicos
+          if (authError.message?.includes('Invalid login credentials')) {
+            console.log('📝 Credenciais inválidas, tentando próxima estratégia...');
+          } else if (authError.message?.includes('Email not confirmed')) {
+            return { user: null, error: 'Email não confirmado. Verifique sua caixa de entrada.' };
+          } else if (authError.message?.includes('Too many requests')) {
+            return { user: null, error: 'Muitas tentativas. Aguarde alguns minutos.' };
+          } else if (authError.status === 400) {
+            console.log('📝 Erro 400 - requisição malformada, tentando próxima estratégia...');
+          }
         }
       } catch (normalLoginError) {
-        console.warn('⚠️ Login normal falhou:', normalLoginError);
+        console.warn('⚠️ Login normal falhou:', {
+          message: normalLoginError instanceof Error ? normalLoginError.message : normalLoginError,
+          stack: normalLoginError instanceof Error ? normalLoginError.stack : undefined
+        });
       }
       
       // Estratégia 2: Verificar localStorage
@@ -387,6 +436,19 @@ export const authService = {
     try {
       console.log('👑 Criando primeiro administrador com múltiplas estratégias...');
       
+      // Validar entrada
+      if (!email || !name || !password) {
+        return { error: 'Todos os campos são obrigatórios' };
+      }
+      
+      if (!email.includes('@')) {
+        return { error: 'Email deve ter formato válido' };
+      }
+      
+      if (password.length < 6) {
+        return { error: 'Senha deve ter pelo menos 6 caracteres' };
+      }
+      
       // Testar conexão primeiro
       const connectionTest = await this.testSupabaseConnection();
       if (!connectionTest.working) {
@@ -399,22 +461,63 @@ export const authService = {
       
       // Estratégia 1: SignUp normal
       try {
+        // Limpar sessão anterior
+        await supabase.auth.signOut();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: normalizedEmail,
           password,
           options: {
-            data: { name, profile: 'admin' }
+            data: { name, profile: 'admin' },
+            emailRedirectTo: undefined // Desabilitar confirmação por email
           }
+        });
+
+        console.log('🔍 Resposta do SignUp:', { 
+          hasUser: !!authData?.user, 
+          hasSession: !!authData?.session,
+          errorCode: authError?.status,
+          errorMessage: authError?.message 
         });
 
         if (authData?.user && !authError) {
           console.log('✅ Admin criado via SignUp normal');
+          
+          // Tentar criar entrada na tabela users
+          try {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            const { error: insertError } = await supabase
+              .from('users')
+              .insert({
+                id: authData.user.id,
+                email: normalizedEmail,
+                name,
+                profile: 'admin',
+              });
+              
+            if (insertError) {
+              console.warn('⚠️ Erro ao inserir na tabela users:', insertError);
+            } else {
+              console.log('✅ Entrada criada na tabela users');
+            }
+          } catch (insertError) {
+            console.warn('⚠️ Erro ao criar entrada na tabela users:', insertError);
+          }
+          
           return { error: null };
         }
         
         if (authError?.message?.includes('User already registered')) {
           console.log('ℹ️ Usuário já existe, considerando sucesso');
           return { error: null };
+        } else if (authError) {
+          console.warn('⚠️ Erro no SignUp:', {
+            status: authError.status,
+            message: authError.message,
+            details: authError
+          });
         }
       } catch (normalError) {
         console.warn('⚠️ SignUp normal falhou:', normalError);

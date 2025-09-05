@@ -18,20 +18,24 @@ try {
   throw new Error('❌ Invalid Supabase URL format');
 }
 
+// Limpar URL para evitar problemas de formatação
+const cleanUrl = supabaseUrl.trim().replace(/\/$/, '');
+const cleanKey = supabaseAnonKey.trim();
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    flowType: 'pkce',
-    debug: import.meta.env.DEV
+    flowType: 'implicit',
+    debug: import.meta.env.DEV,
+    storage: window.localStorage,
+    storageKey: 'supabase.auth.token'
   },
   global: {
     headers: {
-      'apikey': supabaseAnonKey,
-      'Authorization': `Bearer ${supabaseAnonKey}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=minimal'
+      'apikey': cleanKey,
+      'Content-Type': 'application/json'
     },
   },
   db: {
