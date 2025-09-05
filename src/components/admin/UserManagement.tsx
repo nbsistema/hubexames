@@ -38,17 +38,20 @@ export function UserManagement() {
     setLoading(true);
 
     try {
+      console.log('👥 Criando novo usuário:', formData);
       const { error } = await authService.createUser(
         formData.email,
-        formData.name,
+        formData.name.trim(),
         formData.profile
       );
 
       if (error) {
+        console.error('❌ Erro ao criar usuário:', error);
         alert(`Erro ao criar usuário: ${error}`);
         return;
       }
 
+      console.log('✅ Usuário criado com sucesso');
       await loadUsers();
       setShowForm(false);
       setFormData({ name: '', email: '', profile: 'parceiro' });
@@ -144,7 +147,7 @@ export function UserManagement() {
             </div>
           </form>
           <p className="text-sm text-gray-500 mt-2">
-            Senha padrão: <code className="bg-gray-100 px-1 rounded">nb@123</code>
+            Senha padrão: <code className="bg-gray-100 px-1 rounded">nb@123</code> - O usuário pode fazer login imediatamente.
           </p>
         </div>
       )}

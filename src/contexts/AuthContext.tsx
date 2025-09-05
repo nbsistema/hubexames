@@ -18,7 +18,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initAuth = async () => {
       try {
+        console.log('🔄 Inicializando autenticação...');
         const currentUser = await authService.getCurrentUser();
+        if (currentUser) {
+          console.log('✅ Usuário encontrado:', currentUser);
+        } else {
+          console.log('ℹ️ Nenhum usuário logado');
+        }
         setUser(currentUser);
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -31,19 +37,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    console.log('🔐 Context: Iniciando login...');
     const { user: authUser, error } = await authService.signIn(email, password);
     if (authUser) {
+      console.log('✅ Context: Login bem-sucedido, atualizando estado');
       setUser(authUser);
+    } else {
+      console.log('❌ Context: Falha no login');
     }
     return { error };
   };
 
   const signOut = async () => {
+    console.log('🚪 Context: Fazendo logout...');
     await authService.signOut();
     setUser(null);
+    console.log('✅ Context: Logout concluído');
   };
 
   const resetPassword = async (email: string) => {
+    console.log('🔄 Context: Iniciando reset de senha...');
     return await authService.resetPassword(email);
   };
 

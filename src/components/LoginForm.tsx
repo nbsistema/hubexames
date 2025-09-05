@@ -28,10 +28,14 @@ export function LoginForm() {
     setError('');
 
     try {
+      console.log('🔐 Iniciando processo de login...');
       const { error: signInError } = await signIn(email, password);
       
       if (signInError) {
+        console.error('❌ Erro no login:', signInError);
         setError('Email ou senha incorretos. Verifique suas credenciais.');
+      } else {
+        console.log('✅ Login realizado com sucesso');
       }
     } catch (error) {
       console.error('Erro no login:', error);
@@ -46,11 +50,14 @@ export function LoginForm() {
     setLoading(true);
     setResetMessage('');
 
+    console.log('🔄 Iniciando reset de senha para:', resetEmail);
     const { error } = await resetPassword(resetEmail);
     
     if (error) {
+      console.error('❌ Erro no reset:', error);
       setResetMessage('Erro ao enviar email de recuperação');
     } else {
+      console.log('✅ Email de recuperação enviado');
       setResetMessage('Email de recuperação enviado com sucesso!');
       setResetEmail('');
       setTimeout(() => {
@@ -68,26 +75,29 @@ export function LoginForm() {
     setSetupMessage('');
 
     try {
+      console.log('👑 Iniciando criação do primeiro admin...');
       // Importar authService corretamente
       const { authService } = await import('../lib/auth');
       
       const { error } = await authService.createFirstAdmin(
         setupData.email,
-        setupData.name,
+        setupData.name.trim(),
         setupData.password
       );
 
       if (error) {
+        console.error('❌ Erro na criação do admin:', error);
         setSetupMessage(`Erro ao criar administrador: ${error}`);
         return;
       }
 
-      setSetupMessage('Administrador criado com sucesso! Verifique seu email para confirmar a conta, depois faça login.');
+      console.log('✅ Administrador criado com sucesso');
+      setSetupMessage('Administrador criado com sucesso! Você pode fazer login imediatamente com as credenciais criadas.');
       setSetupData({ name: '', email: '', password: '' });
       setTimeout(() => {
         setShowInitialSetup(false);
         setSetupMessage('');
-      }, 5000);
+      }, 3000);
     } catch (error) {
       console.error('Setup error:', error);
       setSetupMessage('Erro interno do sistema');
@@ -349,7 +359,7 @@ export function LoginForm() {
 
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-800">
-              <strong>Importante:</strong> Após criar o administrador, você pode fazer login imediatamente com as credenciais criadas.
+              <strong>Importante:</strong> Após criar o administrador, você pode fazer login imediatamente. Não é necessário confirmar email.
             </p>
           </div>
         </div>

@@ -10,19 +10,26 @@ export interface AuthUser {
 export const authService = {
   async signIn(email: string, password: string): Promise<{ user: AuthUser | null; error: string | null }> {
     try {
+      console.log('🔐 Tentando fazer login com:', email);
+      
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
 
       if (authError) {
+        console.error('❌ Erro de autenticação:', authError);
         return { user: null, error: authError.message };
       }
 
       if (!authData.user) {
+        console.error('❌ Usuário não encontrado após login');
         return { user: null, error: 'Usuário não encontrado' };
       }
 
+      console.log('✅ Login realizado com sucesso, buscando dados do usuário...');
+
+      // Buscar dados do usuário na tabela users
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
@@ -30,8 +37,16 @@ export const authService = {
         .single();
 
       if (userError) {
+        console.error('❌ Erro ao buscar dados do usuário:', userError);
         return { user: null, error: 'Erro ao buscar dados do usuário' };
       }
+
+      if (!userData) {
+        console.error('❌ Dados do usuário não encontrados');
+        return { user: null, error: 'Dados do usuário não encontrados' };
+      }
+
+      console.log('✅ Dados do usuário encontrados:', userData);
 
       return {
         user: {
@@ -43,27 +58,51 @@ export const authService = {
         error: null,
       };
     } catch (error) {
+      console.error('❌ Erro interno no login:', error);
       return { user: null, error: 'Erro interno do sistema' };
     }
   },
 
   async signOut(): Promise<void> {
-    await supabase.auth.signOut();
+    try {
+      console.log('🚪 Fazendo logout...');
+      await supabase.auth.signOut();
+      console.log('✅ Logout realizado com sucesso');
+    } catch (error) {
+      console.error('❌ Erro no logout:', error);
+    }
   },
 
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      console.log('👤 Verificando usuário atual...');
       
-      if (!user) return null;
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.error('❌ Erro ao verificar usuário:', authError);
+        return null;
+      }
+      
+      if (!user) {
+        console.log('ℹ️ Nenhum usuário logado');
+        return null;
+      }
 
-      const { data: userData, error } = await supabase
+      console.log('✅ Usuário autenticado encontrado, buscando dados...');
+
+      const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('id', user.id)
         .single();
 
-      if (error || !userData) return null;
+      if (userError || !userData) {
+        console.error('❌ Erro ao buscar dados do usuário:', userError);
+        return null;
+      }
+
+      console.log('✅ Dados do usuário carregados:', userData);
 
       return {
         id: userData.id,
@@ -71,32 +110,45 @@ export const authService = {
         name: userData.name,
         profile: userData.profile,
       };
-    } catch {
+    } catch (error) {
+      console.error('❌ Erro interno ao verificar usuário:', error);
       return null;
     }
   },
 
   async resetPassword(email: string): Promise<{ error: string | null }> {
     try {
-      // Usar a URL de produção
-      const redirectUrl = 'https://hub-exames.netlify.app/reset-password';
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      console.log('🔄 Enviando email de reset para:', email);
+      
+      const redirectUrl = window.location.origin + '/reset-password';
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
         redirectTo: redirectUrl,
       });
 
-      return { error: error?.message || null };
-    } catch {
+      if (error) {
+        console.error('❌ Erro ao enviar email de reset:', error);
+        return { error: error.message };
+      }
+
+      console.log('✅ Email de reset enviado com sucesso');
+      return { error: null };
+    } catch (error) {
+      console.error('❌ Erro interno no reset de senha:', error);
       return { error: 'Erro interno do sistema' };
     }
   },
 
   async createUser(email: string, name: string, profile: UserProfile): Promise<{ error: string | null }> {
     try {
-      // Usar signUp para todos os usuários para garantir compatibilidade
+      console.log('👥 Criando usuário:', { email, name, profile });
+      
+      // Primeiro, criar o usuário na autenticação
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password: 'nb@123',
         options: {
+          emailRedirectTo: window.location.origin,
           data: {
             name: name,
             profile: profile
@@ -104,9 +156,17 @@ export const authService = {
         }
       });
 
-      if (authError || !authData.user) {
-        return { error: authError?.message || 'Erro ao criar usuário' };
+      if (authError) {
+        console.error('❌ Erro ao criar usuário na auth:', authError);
+        return { error: authError.message };
       }
+
+      if (!authData.user) {
+        console.error('❌ Usuário não foi criado');
+        return { error: 'Erro ao criar usuário' };
+      }
+
+      console.log('✅ Usuário criado na auth, criando perfil...');
 
       // Aguardar um pouco para garantir que o usuário foi criado
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -116,7 +176,7 @@ export const authService = {
         .from('users')
         .upsert({
           id: authData.user.id,
-          email,
+          email: email.trim().toLowerCase(),
           name,
           profile,
         }, {
@@ -124,34 +184,44 @@ export const authService = {
         });
 
       if (profileError) {
-        console.error('Erro ao criar perfil:', profileError);
+        console.error('❌ Erro ao criar perfil:', profileError);
         return { error: 'Erro ao criar perfil do usuário' };
       }
 
+      console.log('✅ Usuário criado com sucesso');
       return { error: null };
     } catch (error) {
-      console.error('Erro na criação do usuário:', error);
+      console.error('❌ Erro interno na criação do usuário:', error);
       return { error: 'Erro interno do sistema' };
     }
   },
 
   async createFirstAdmin(email: string, name: string, password: string): Promise<{ error: string | null }> {
     try {
+      console.log('👑 Criando primeiro administrador:', { email, name });
+      
       // Verificar se já existe admin
-      const { count } = await supabase
+      const { count, error: countError } = await supabase
         .from('users')
-        .select('*', { count: 'exact' })
+        .select('*', { count: 'exact', head: true })
         .eq('profile', 'admin');
         
+      if (countError) {
+        console.error('❌ Erro ao verificar admins existentes:', countError);
+        return { error: 'Erro ao verificar sistema' };
+      }
+        
       if (count && count > 0) {
+        console.log('ℹ️ Já existe administrador no sistema');
         return { error: 'Já existe um administrador no sistema' };
       }
 
       // Criar usuário com signUp
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password,
         options: {
+          emailRedirectTo: window.location.origin,
           data: {
             name: name,
             profile: 'admin'
@@ -159,18 +229,43 @@ export const authService = {
         }
       });
 
-      if (authError || !authData.user) {
-        return { error: authError?.message || 'Erro ao criar usuário' };
+      if (authError) {
+        console.error('❌ Erro ao criar admin na auth:', authError);
+        return { error: authError.message };
       }
 
-      // Aguardar para garantir que o usuário foi criado
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!authData.user) {
+        console.error('❌ Admin não foi criado');
+        return { error: 'Erro ao criar administrador' };
+      }
 
+      console.log('✅ Admin criado na auth, criando perfil...');
+
+      // Aguardar para garantir que o usuário foi criado
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Criar perfil do admin na tabela users
+      const { error: profileError } = await supabase
+        .from('users')
+        .upsert({
+          id: authData.user.id,
+          email: email.trim().toLowerCase(),
+          name,
+          profile: 'admin',
+        }, {
+          onConflict: 'id'
+        });
+
+      if (profileError) {
+        console.error('❌ Erro ao criar perfil do admin:', profileError);
+        return { error: 'Erro ao criar perfil do administrador' };
+      }
+
+      console.log('✅ Primeiro administrador criado com sucesso');
       return { error: null };
     } catch (error) {
-      console.error('Erro na criação do admin:', error);
+      console.error('❌ Erro interno na criação do admin:', error);
       return { error: 'Erro interno do sistema' };
     }
   },
-
 };
