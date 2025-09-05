@@ -344,26 +344,18 @@ export const authService = {
         return { error: 'A senha deve ter pelo menos 6 caracteres' };
       }
       
-      // Verificar se já existe admin (com tratamento de tabela inexistente)
-      try {
-        const { count, error: countError } = await supabase
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .eq('profile', 'admin');
-          
-        if (countError) {
-          if (countError.code === '42P01') {
-            console.log('ℹ️ Tabela users não existe ainda, continuando com criação do admin...');
-          } else {
-            console.error('❌ Erro ao verificar admins existentes:', countError);
-            return { error: 'Erro ao verificar sistema' };
-          }
-        } else if (count && count > 0) {
-          console.log('ℹ️ Já existe administrador no sistema');
-          return { error: 'Já existe um administrador no sistema' };
-        }
-      } catch (tableError) {
-        console.log('ℹ️ Tabela users não acessível, continuando com criação...');
+      // Verificar se já existe admin
+      const { count, error: countError } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('profile', 'admin');
+        
+      if (countError) {
+        console.error('❌ Erro ao verificar admins existentes:', countError);
+        // Continuar mesmo com erro - pode ser que a tabela não exista ainda
+      } else if (count && count > 0) {
+        console.log('ℹ️ Já existe administrador no sistema');
+        return { error: 'Já existe um administrador no sistema' };
       }
 
       // Criar usuário com signUp
@@ -406,37 +398,51 @@ export const authService = {
 
       console.log('✅ Admin criado na auth, criando perfil...');
 
-      // Aguardar o trigger automático criar o perfil
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Aguardar o trigger automático criar o perfil (5 segundos para garantir)
+      await new Promise(resolve => setTimeout(resolve, 5000));
       
       // Verificar se o perfil foi criado pelo trigger
-      try {
-        const { data: userData, error: checkError } = await supabase
+      const { data: userData, error: checkError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authData.user.id)
+        .single();
+        
+      if (checkError || !userData) {
+        console.log('ℹ️ Trigger não funcionou, criando perfil manualmente...');
+        
+        // Criar perfil manualmente se o trigger não funcionou
+        const { error: profileError } = await supabase
           .from('users')
-          .select('*')
-          .eq('id', authData.user.id)
-          .single();
-          
-        if (checkError || !userData) {
-          console.log('ℹ️ Trigger não funcionou, criando perfil manualmente...');
-          
-          // Criar perfil manualmente se o trigger não funcionou
-          const { error: profileError } = await supabase
-            .from('users')
-            .insert({
-              id: authData.user.id,
-              email: normalizedEmail,
-              name,
-              profile: 'admin',
-            });
+          .insert({
+            id: authData.user.id,
+            email: normalizedEmail,
+            name,
+            profile: 'admin',
+          });
 
-          if (profileError) {
-            console.error('❌ Erro ao criar perfil manualmente:', profileError);
+        if (profileError) {
+          console.error('❌ Erro ao criar perfil manualmente:', profileError);
+          
+          // Se for erro de duplicata, tentar atualizar
+          if (profileError.code === '23505') {
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({
+                email: normalizedEmail,
+                name,
+                profile: 'admin',
+              })
+              .eq('id', authData.user.id);
+              
+            if (updateError) {
+              console.error('❌ Erro ao atualizar perfil:', updateError);
+              return { error: 'Erro ao criar perfil do administrador' };
+            }
+          } else {
             return { error: 'Erro ao criar perfil do administrador' };
           }
         }
-      } catch (error) {
-        console.log('ℹ️ Não foi possível verificar perfil, mas usuário foi criado na auth');
       }
 
       console.log('✅ Primeiro administrador criado com sucesso');

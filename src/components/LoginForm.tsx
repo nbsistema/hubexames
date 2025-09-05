@@ -360,10 +360,10 @@ export function LoginForm() {
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-800">
               <strong>Importante:</strong> 
-              <br />• Certifique-se de que o banco de dados está configurado corretamente
-              <br />• Após criar o administrador, aguarde alguns segundos e faça login
+              <br />• O sistema criará automaticamente todas as tabelas necessárias
+              <br />• Após criar o administrador, aguarde 5 segundos e faça login
               <br />• Para novos usuários criados pelo admin, a senha padrão é: <code className="bg-blue-100 px-1 rounded">nb@123</code>
-              <br />• Se houver erro 42P17, execute as migrações do banco de dados
+              <br />• Todas as migrações são executadas automaticamente
             </p>
           </div>
         </div>
