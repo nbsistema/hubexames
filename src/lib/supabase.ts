@@ -32,9 +32,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       'Authorization': `Bearer ${supabaseAnonKey}`,
       'Content-Type': 'application/json',
       'Prefer': 'return=minimal'
-      'Authorization': `Bearer ${supabaseAnonKey}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=minimal'
     },
   },
   db: {
