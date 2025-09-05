@@ -92,18 +92,18 @@ export function LoginForm() {
       }
 
       console.log('✅ Administrador criado com sucesso');
-      setSetupMessage('Administrador criado com sucesso! Você pode fazer login imediatamente com as credenciais criadas.');
+      setSetupMessage('Administrador criado com sucesso! Aguarde alguns segundos e depois faça login com as credenciais criadas.');
       setSetupData({ name: '', email: '', password: '' });
       
-      // Aguardar um pouco mais antes de permitir login para evitar conflitos
+      // Aguardar mais tempo antes de permitir login
       setTimeout(() => {
-        setSetupMessage('Administrador criado! Aguarde alguns segundos e depois faça login normalmente.');
-      }, 2000);
+        setSetupMessage('Administrador criado! Agora você pode tentar fazer login. Se der erro de credenciais, aguarde mais alguns segundos.');
+      }, 3000);
       
       setTimeout(() => {
         setShowInitialSetup(false);
         setSetupMessage('');
-      }, 8000);
+      }, 10000);
     } catch (error) {
       console.error('Setup error:', error);
       setSetupMessage('Erro interno do sistema');

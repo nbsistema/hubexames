@@ -25,6 +25,9 @@ export const authService = {
         return { user: null, error: 'Formato de email inválido' };
       }
       
+      // Aguardar um pouco antes de tentar login (para casos de usuário recém-criado)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password,
@@ -38,13 +41,13 @@ export const authService = {
         // Mapear erros específicos do Supabase para mensagens mais claras
         let errorMessage = 'Erro de autenticação';
         if (authError.message?.includes('Invalid login credentials') || authError.message?.includes('invalid_credentials')) {
-          errorMessage = 'Email ou senha incorretos';
+          errorMessage = 'Email ou senha incorretos. Se você acabou de criar o usuário, aguarde alguns segundos e tente novamente.';
         } else if (authError.message?.includes('Email not confirmed')) {
-          errorMessage = 'Email não confirmado';
+          errorMessage = 'Email não confirmado. Verifique sua caixa de entrada ou aguarde alguns minutos.';
         } else if (authError.message?.includes('Too many requests')) {
           errorMessage = 'Muitas tentativas. Tente novamente em alguns minutos';
         } else if (authError.status === 400) {
-          errorMessage = 'Dados de login inválidos';
+          errorMessage = 'Dados de login inválidos. Verifique email e senha.';
         } else if (authError.status === 500) {
           errorMessage = 'Erro interno do servidor. Tente novamente';
         } else {
@@ -61,6 +64,9 @@ export const authService = {
 
       console.log('✅ Login realizado com sucesso, buscando dados do usuário...');
 
+      // Aguardar um pouco antes de buscar dados do usuário
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       // Buscar dados do usuário na tabela users
       const { data: userData, error: userError } = await supabase
         .from('users')
@@ -75,7 +81,35 @@ export const authService = {
         
         // Se o usuário não existe na tabela users, mas existe na auth
         if (userError.code === 'PGRST116') {
-          return { user: null, error: 'Perfil de usuário não encontrado. Entre em contato com o administrador.' };
+          // Tentar criar o perfil automaticamente para admin
+          console.log('ℹ️ Perfil não encontrado, tentando criar automaticamente...');
+          try {
+            const { error: createError } = await supabase
+              .from('users')
+              .insert({
+                id: authData.user.id,
+                email: normalizedEmail,
+                name: authData.user.user_metadata?.name || 'Administrador',
+                profile: 'admin',
+              });
+              
+            if (!createError) {
+              console.log('✅ Perfil criado automaticamente');
+              return {
+                user: {
+                  id: authData.user.id,
+                  email: normalizedEmail,
+                  name: authData.user.user_metadata?.name || 'Administrador',
+                  profile: 'admin',
+                },
+                error: null,
+              };
+            }
+          } catch (createError) {
+            console.warn('⚠️ Não foi possível criar perfil automaticamente');
+          }
+          
+          return { user: null, error: 'Perfil de usuário não encontrado. As tabelas podem não ter sido criadas ainda.' };
         }
         
         return { user: null, error: 'Erro ao buscar dados do usuário' };
@@ -333,15 +367,33 @@ export const authService = {
       
       console.log('ℹ️ Prosseguindo com criação do admin (primeira execução)');
 
-      // Criar usuário com signUp
+      // Primeiro, verificar se o usuário já existe
+      try {
+        const { data: existingUser } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password: password
+        });
+        
+        if (existingUser.user) {
+          console.log('ℹ️ Usuário já existe e pode fazer login');
+          return { error: null };
+        }
+      } catch (error) {
+        console.log('ℹ️ Usuário não existe ainda, prosseguindo com criação');
+      }
+
+      // Criar usuário com signUp e confirmação automática
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
         options: {
+          emailRedirectTo: undefined, // Desabilitar redirecionamento
           data: {
             name: name,
             profile: 'admin'
-          }
+          },
+          // Tentar confirmar automaticamente
+          captchaToken: undefined
         }
       });
 
@@ -352,7 +404,23 @@ export const authService = {
         
         let errorMessage = 'Erro ao criar administrador';
         if (authError.message?.includes('User already registered') || authError.message?.includes('already_registered')) {
-          errorMessage = 'Este email já está cadastrado no sistema';
+          // Se já existe, tentar fazer login para verificar se funciona
+          console.log('ℹ️ Usuário já existe, verificando se pode fazer login...');
+          try {
+            const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+              email: normalizedEmail,
+              password: password
+            });
+            
+            if (loginData.user && !loginError) {
+              console.log('✅ Usuário já existe e pode fazer login');
+              return { error: null };
+            } else {
+              return { error: 'Usuário já existe mas não consegue fazer login. Verifique a senha.' };
+            }
+          } catch (loginError) {
+            return { error: 'Usuário já existe mas há problema com as credenciais' };
+          }
         } else if (authError.message?.includes('Password should be at least')) {
           errorMessage = 'A senha deve ter pelo menos 6 caracteres';
         } else if (authError.status === 400) {
@@ -373,8 +441,8 @@ export const authService = {
 
       console.log('✅ Admin criado na auth, criando perfil...');
 
-      // Aguardar um pouco para garantir que o usuário foi criado
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Aguardar mais tempo para garantir que o usuário foi criado
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       // Tentar criar perfil manualmente (a tabela pode não existir ainda)
       try {
@@ -397,6 +465,24 @@ export const authService = {
         console.warn('⚠️ Tabela users não existe ainda, mas o usuário foi criado na auth');
       }
 
+      // Verificar se o usuário pode fazer login imediatamente
+      console.log('🔍 Testando login imediato...');
+      try {
+        const { data: testLogin, error: testError } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password: password
+        });
+        
+        if (testLogin.user && !testError) {
+          console.log('✅ Login teste bem-sucedido');
+          // Fazer logout do teste
+          await supabase.auth.signOut();
+        } else {
+          console.warn('⚠️ Login teste falhou:', testError?.message);
+        }
+      } catch (testError) {
+        console.warn('⚠️ Não foi possível testar login:', testError);
+      }
       console.log('✅ Primeiro administrador criado com sucesso');
       return { error: null };
     } catch (error) {
