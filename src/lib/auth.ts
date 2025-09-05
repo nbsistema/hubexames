@@ -143,8 +143,27 @@ export const authService = {
           .single();
 
         if (userError) {
+          // Tratar erro 409 (Conflict) especificamente
+          if (userError.code === '409' || userError.message?.includes('409')) {
+            console.warn('⚠️ Conflito detectado, aguardando sincronização...');
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            // Tentar novamente após aguardar
+            const { data: retryData, error: retryError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', user.id)
+              .single();
+              
+            if (retryError) {
+              console.warn('⚠️ Ainda há conflito após retry:', retryError);
+              return null;
+            }
+            
+            userData = retryData;
+          }
           // Se a tabela não existe ou há problemas de estrutura, não logar como erro crítico
-          if (userError.code === '42P01' || userError.code === '42P17') {
+          else if (userError.code === '42P01' || userError.code === '42P17') {
             console.warn('⚠️ Tabela users não existe ainda. Isso é normal na primeira execução.');
             return null;
           } else if (userError.code === 'PGRST116') {

@@ -27,22 +27,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         
-        // Verificar apenas se há sessão ativa, sem tentar buscar dados do usuário
+        // Aguardar um pouco para evitar conflitos após criação de usuário
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Verificar se há sessão ativa
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
           console.log('🔄 Sessão ativa encontrada, tentando carregar dados do usuário...');
-          try {
-            const currentUser = await authService.getCurrentUser();
-            if (currentUser) {
-              console.log('✅ Usuário encontrado:', currentUser);
-              setUser(currentUser);
-            } else {
-              console.log('ℹ️ Sessão existe mas perfil não encontrado (normal na primeira execução)');
-              setUser(null);
+          
+          // Aguardar mais um pouco antes de tentar carregar dados
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Tentar carregar dados do usuário com retry
+          let retries = 3;
+          let currentUser = null;
+          
+          while (retries > 0 && !currentUser) {
+            try {
+              currentUser = await authService.getCurrentUser();
+              if (currentUser) {
+                console.log('✅ Usuário encontrado:', currentUser);
+                setUser(currentUser);
+                break;
+              }
+            } catch (error: any) {
+              console.warn(`⚠️ Tentativa ${4 - retries}/3 falhou:`, error.message);
+              retries--;
+              if (retries > 0) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
             }
-          } catch (error) {
-            console.warn('⚠️ Erro ao carregar dados do usuário, mas sessão existe:', error);
+          }
+          
+          if (!currentUser) {
+            console.log('ℹ️ Não foi possível carregar perfil após 3 tentativas (normal na primeira execução)');
             setUser(null);
           }
         } else {
