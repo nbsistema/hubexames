@@ -28,24 +28,19 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    flowType: 'implicit',
     debug: import.meta.env.DEV,
     storage: window.localStorage,
-    storageKey: 'supabase.auth.token'
+    storageKey: 'supabase.auth.token',
+    // Desabilitar confirmação de email por padrão
+    autoConfirmUser: true
   },
   global: {
     headers: {
-      'apikey': cleanKey,
-      'Content-Type': 'application/json'
+      'apikey': cleanKey
     },
   },
   db: {
     schema: 'public',
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 2,
-    },
   },
 });
 

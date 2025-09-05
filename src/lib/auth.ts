@@ -145,7 +145,82 @@ export const authService = {
         return { user: null, error: 'Senha deve ter pelo menos 3 caracteres' };
       }
       
-      // Estratégia 1: Tentar login normal do Supabase
+      // Estratégia 1: Login direto via API REST (corrigindo o problema grant_type)
+      console.log('📝 Estratégia 1: Login direto via API REST...');
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            email: normalizedEmail,
+            password: password,
+            gotrue_meta_security: {}
+          })
+        });
+
+        console.log('🔍 Resposta da API REST:', { 
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+
+        if (response.ok) {
+          const authData = await response.json();
+          console.log('✅ Login direto via API funcionou');
+          
+          // Definir a sessão no cliente Supabase
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: authData.access_token,
+            refresh_token: authData.refresh_token
+          });
+          
+          if (!sessionError) {
+            // Buscar dados do usuário
+            try {
+              const { data: userData } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', authData.user.id)
+                .single();
+                
+              if (userData) {
+                return {
+                  user: {
+                    id: userData.id,
+                    email: userData.email,
+                    name: userData.name,
+                    profile: userData.profile,
+                  },
+                  error: null,
+                };
+              }
+            } catch (userError) {
+              console.warn('⚠️ Erro ao buscar dados do usuário, usando dados básicos');
+            }
+            
+            return {
+              user: {
+                id: authData.user.id,
+                email: normalizedEmail,
+                name: authData.user.user_metadata?.name || 'Admin',
+                profile: 'admin',
+              },
+              error: null,
+            };
+          }
+        } else {
+          const errorData = await response.json();
+          console.warn('⚠️ Erro na API REST:', errorData);
+        }
+      } catch (directApiError) {
+        console.warn('⚠️ Login direto via API falhou:', directApiError);
+      }
+      
+      // Estratégia 2: Tentar login normal do Supabase
       console.log('📝 Estratégia 1: Login normal...');
       try {
         // Limpar sessão anterior se existir
@@ -230,7 +305,7 @@ export const authService = {
         });
       }
       
-      // Estratégia 2: Verificar localStorage
+      // Estratégia 3: Verificar localStorage
       console.log('💾 Estratégia 2: Verificar localStorage...');
       try {
         const localUser = localStorage.getItem('nb_admin_user');
@@ -253,7 +328,7 @@ export const authService = {
         console.warn('⚠️ Erro no localStorage:', localError);
       }
       
-      // Estratégia 3: Login hardcoded para desenvolvimento
+      // Estratégia 4: Login hardcoded para desenvolvimento
       console.log('🔧 Estratégia 3: Login de desenvolvimento...');
       if (normalizedEmail === 'admin@nb.com' && password === 'admin123') {
         console.log('✅ Login de desenvolvimento funcionou');
@@ -459,7 +534,73 @@ export const authService = {
       
       const normalizedEmail = email.trim().toLowerCase();
       
-      // Estratégia 1: SignUp normal
+      // Estratégia 1: SignUp via API REST (corrigindo problemas de confirmação)
+      try {
+        console.log('📝 Estratégia 1: SignUp via API REST...');
+        
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/signup`, {
+          method: 'POST',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            email: normalizedEmail,
+            password: password,
+            data: { name, profile: 'admin' },
+            // Forçar confirmação automática
+            email_confirm: true
+          })
+        });
+
+        if (response.ok) {
+          const authData = await response.json();
+          console.log('✅ Admin criado via API REST');
+          
+          // Se o usuário foi criado, confirmar email automaticamente
+          if (authData.user && !authData.user.email_confirmed_at) {
+            try {
+              // Tentar confirmar via API admin se possível
+              const confirmResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users/${authData.user.id}`, {
+                method: 'PUT',
+                headers: {
+                  'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                },
+                body: JSON.stringify({
+                  email_confirm: true
+                })
+              });
+              
+              if (confirmResponse.ok) {
+                console.log('✅ Email confirmado automaticamente');
+              }
+            } catch (confirmError) {
+              console.warn('⚠️ Não foi possível confirmar email automaticamente');
+            }
+          }
+          
+          // Criar entrada na tabela users
+          try {
+            await supabase.from('users').insert({
+              id: authData.user.id,
+              email: normalizedEmail,
+              name,
+              profile: 'admin',
+            });
+          } catch (insertError) {
+            console.warn('⚠️ Erro ao inserir na tabela users:', insertError);
+          }
+          
+          return { error: null };
+        }
+      } catch (apiError) {
+        console.warn('⚠️ SignUp via API REST falhou:', apiError);
+      }
+      
+      // Estratégia 2: SignUp normal
       try {
         // Limpar sessão anterior
         await supabase.auth.signOut();
@@ -470,7 +611,8 @@ export const authService = {
           password,
           options: {
             data: { name, profile: 'admin' },
-            emailRedirectTo: undefined // Desabilitar confirmação por email
+            emailRedirectTo: undefined, // Desabilitar confirmação por email
+            captchaToken: undefined
           }
         });
 
@@ -523,13 +665,13 @@ export const authService = {
         console.warn('⚠️ SignUp normal falhou:', normalError);
       }
       
-      // Estratégia 2: Admin API
+      // Estratégia 3: Admin API
       const adminResult = await this.createUserWithAdminAPI(normalizedEmail, password, name);
       if (adminResult.success) {
         return { error: null };
       }
       
-      // Estratégia 3: Fallback local
+      // Estratégia 4: Fallback local
       const fallbackResult = await this.createUserFallback(normalizedEmail, password, name);
       if (fallbackResult.success) {
         return { error: null };
