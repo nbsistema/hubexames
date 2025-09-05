@@ -27,15 +27,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         
-        const currentUser = await authService.getCurrentUser();
-        if (currentUser) {
-          console.log('✅ Usuário encontrado:', currentUser);
+        // Verificar apenas se há sessão ativa, sem tentar buscar dados do usuário
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          console.log('🔄 Sessão ativa encontrada, tentando carregar dados do usuário...');
+          try {
+            const currentUser = await authService.getCurrentUser();
+            if (currentUser) {
+              console.log('✅ Usuário encontrado:', currentUser);
+              setUser(currentUser);
+            } else {
+              console.log('ℹ️ Sessão existe mas perfil não encontrado (normal na primeira execução)');
+              setUser(null);
+            }
+          } catch (error) {
+            console.warn('⚠️ Erro ao carregar dados do usuário, mas sessão existe:', error);
+            setUser(null);
+          }
         } else {
-          console.log('ℹ️ Nenhum usuário logado');
+          console.log('ℹ️ Nenhuma sessão ativa');
+          setUser(null);
         }
-        setUser(currentUser);
       } catch (error) {
-        console.error('❌ Erro ao inicializar autenticação:', error);
+        console.warn('⚠️ Erro na inicialização da autenticação:', error);
+        setUser(null);
       } finally {
         setLoading(false);
       }

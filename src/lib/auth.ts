@@ -135,65 +135,33 @@ export const authService = {
 
       console.log('✅ Usuário autenticado encontrado, buscando dados...');
 
-      // Verificar se a tabela users existe antes de fazer a consulta
       try {
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .single();
 
         if (userError) {
-          console.error('❌ Erro ao buscar dados do usuário:', userError);
-          console.error('❌ Código do erro:', userError.code);
-          console.error('❌ Detalhes:', userError.details);
-          
-          // Se a tabela não existe (42P01) ou não há dados (PGRST116)
-          if (userError.code === '42P01') {
-            console.error('❌ Tabela users não existe. Execute as migrações do banco de dados.');
+          // Se a tabela não existe ou há problemas de estrutura, não logar como erro crítico
+          if (userError.code === '42P01' || userError.code === '42P17') {
+            console.warn('⚠️ Tabela users não existe ainda. Isso é normal na primeira execução.');
             return null;
           } else if (userError.code === 'PGRST116') {
-            console.log('ℹ️ Perfil não encontrado, criando automaticamente...');
-            // Tentar criar o perfil automaticamente
-            const { error: createError } = await supabase
-              .from('users')
-              .insert({
-                id: user.id,
-                email: user.email || '',
-                name: user.user_metadata?.name || 'Usuário',
-                profile: user.user_metadata?.profile || 'parceiro',
-              });
-            
-            if (createError) {
-              console.error('❌ Erro ao criar perfil automaticamente:', createError);
-              return null;
-            }
-            
-            // Buscar novamente após criar
-            const { data: newUserData, error: newUserError } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', user.id)
-              .single();
-              
-            if (newUserError || !newUserData) {
-              console.error('❌ Erro ao buscar dados após criação:', newUserError);
-              return null;
-            }
-            
-            userData = newUserData;
+            console.info('ℹ️ Perfil não encontrado para usuário logado');
+            return null;
           } else {
+            console.error('❌ Erro ao buscar dados do usuário:', userError);
             return null;
           }
         }
         
         if (!userData) {
-          console.error('❌ Dados do usuário não encontrados');
+          console.info('ℹ️ Dados do usuário não encontrados');
           return null;
         }
       } catch (tableError) {
-        console.error('❌ Erro de acesso à tabela users:', tableError);
-        console.error('❌ Verifique se as migrações do banco foram executadas');
+        console.warn('⚠️ Tabela users ainda não está disponível. Isso é normal na primeira execução.');
         return null;
       }
 

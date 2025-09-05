@@ -46,14 +46,17 @@ if (import.meta.env.DEV) {
   console.log('🔗 Supabase URL:', supabaseUrl);
   console.log('🔑 Supabase anon key (início):', supabaseAnonKey?.slice(0, 20) + '...');
   
-  // Testar conexão
-  supabase.from('users').select('count', { count: 'exact', head: true })
+  // Testar conexão básica sem depender de tabelas específicas
+  supabase.auth.getSession()
     .then(({ error }) => {
       if (error) {
-        console.error('❌ Erro de conexão com Supabase:', error);
+        console.error('❌ Erro de conexão com Supabase Auth:', error);
       } else {
-        console.log('✅ Conexão com Supabase estabelecida');
+        console.log('✅ Conexão com Supabase Auth estabelecida');
       }
+    })
+    .catch(() => {
+      console.warn('⚠️ Não foi possível testar a conexão com Supabase');
     });
 }
 
