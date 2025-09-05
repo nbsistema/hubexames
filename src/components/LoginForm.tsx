@@ -198,6 +198,16 @@ export function LoginForm() {
                 Voltar ao login
               </button>
             </form>
+
+            <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                <strong>Primeira execução:</strong>
+                <br />• O usuário será criado no sistema de autenticação
+                <br />• As tabelas do banco serão criadas automaticamente
+                <br />• Após criar, aguarde alguns segundos e faça login
+                <br />• Se houver erro, tente fazer login mesmo assim
+              </p>
+            </div>
           </div>
         </div>
       </div>
